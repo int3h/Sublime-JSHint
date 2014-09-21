@@ -30,7 +30,7 @@ class JshintCommand(sublime_plugin.TextCommand):
     os.remove(temp_file_path)
 
     # Dump any diagnostics and get the output after the identification marker.
-    if PluginUtils.get_pref('print_diagnostics'):
+    if PluginUtils.get_pref('print_diagnostics', self.view):
       print(self.get_output_diagnostics(output))
     output = self.get_output_data(output)
 
@@ -147,7 +147,7 @@ class JshintCommand(sublime_plugin.TextCommand):
     selection.add(region_cursor)
     self.view.show(region_cursor)
 
-    if not PluginUtils.get_pref("highlight_selected_regions"):
+    if not PluginUtils.get_pref("highlight_selected_regions", self.view):
       return
 
     self.view.erase_regions("jshint_selected")
@@ -176,7 +176,7 @@ class JshintEventListeners(sublime_plugin.EventListener):
     # This is only available in Sublime 3.
     if int(sublime.version()) < 3000:
       return
-    if not PluginUtils.get_pref("lint_on_edit"):
+    if not PluginUtils.get_pref("lint_on_edit", view):
       return
 
     # Re-run the jshint command after a second of inactivity after the view
@@ -184,20 +184,20 @@ class JshintEventListeners(sublime_plugin.EventListener):
     # previously linted source code.
     self.reset()
 
-    timeout = PluginUtils.get_pref("lint_on_edit_timeout")
+    timeout = PluginUtils.get_pref("lint_on_edit_timeout", view)
     self.timer = Timer(timeout, lambda: view.window().run_command("jshint", { "show_panel": False }))
     self.timer.start()
 
   @staticmethod
   def on_post_save(view):
     # Continue only if the current plugin settings allow this to happen.
-    if PluginUtils.get_pref("lint_on_save"):
+    if PluginUtils.get_pref("lint_on_save", view):
       view.window().run_command("jshint", { "show_panel": False })
 
   @staticmethod
   def on_load(view):
     # Continue only if the current plugin settings allow this to happen.
-    if PluginUtils.get_pref("lint_on_load"):
+    if PluginUtils.get_pref("lint_on_load", view):
       v = view.window() if int(sublime.version()) < 3000 else view
       v.run_command("jshint", { "show_panel": False })
 
@@ -240,8 +240,11 @@ class JshintClearAnnotationsCommand(sublime_plugin.TextCommand):
 
 class PluginUtils:
   @staticmethod
-  def get_pref(key):
-    return sublime.load_settings(SETTINGS_FILE).get(key)
+  def get_pref(key, view=None):
+    pkg_settings = sublime.load_settings(SETTINGS_FILE)
+    view_settings = view.settings() if view else {}
+
+    return view_settings.get(key, pkg_settings.get(key))
 
   @staticmethod
   def open_config_rc(window):
@@ -273,7 +276,7 @@ class PluginUtils:
     return False
 
   @staticmethod
-  def get_node_path():
+  def get_node_path(view=None):
     # Simply using `node` without specifying a path sometimes doesn't work :(
     if PluginUtils.exists_in_path("nodejs"):
       return "nodejs"
@@ -281,7 +284,7 @@ class PluginUtils:
       return "node"
     else:
       platform = sublime.platform()
-      node = PluginUtils.get_pref("node_path").get(platform)
+      node = PluginUtils.get_pref("node_path", view).get(platform)
       print("Using node.js path on '" + platform + "': " + node)
       return node
 
